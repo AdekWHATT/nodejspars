@@ -2,18 +2,25 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs');
 
+const baseUrl = 'https://consulting.1c.ru';
+
 async function parsePage(pageNum) {
   try {
-    const url = `https://consulting.1c.ru/partners/?PAGEN_2=${pageNum}`;
+    const url = `${baseUrl}/partners/?PAGEN_2=${pageNum}`;
     const response = await axios.get(url);
     const $ = cheerio.load(response.data);
 
     const partners = [];
-    $('.wrapper_iso').each((index, element) => {
+    for (const element of $('.wrapper_iso')) {
       const partnerName = $(element).find('.link_to_parth').text().trim();
       const partnerCity = $(element).find('.city_parth').text().trim();
-      partners.push(`${partnerName},${partnerCity}`);
-    });
+      const partnerLink = $(element).find('.link_to_parth').attr('href');
+      const partnerUrl = `${baseUrl}${partnerLink}`;
+      const partnerResponse = await axios.get(partnerUrl);
+      const partner$ = cheerio.load(partnerResponse.data);
+      const partnerAddress = partner$('.loc_name_parth').text().trim();
+      partners.push({ name: partnerName, city: partnerCity, address: partnerAddress, url: partnerUrl });
+    }
 
     return partners;
   } catch (error) {
@@ -31,7 +38,8 @@ async function parseAllPages() {
 }
 
 parseAllPages().then((partners) => {
-  fs.writeFile('partners.txt', partners.join('\n'), (err) => {
+  const partnerStrings = partners.map((partner) => `${partner.name},${partner.city},${partner.address}`).join('\n');
+  fs.writeFile('partnersNew.txt', partnerStrings, (err) => {
     if (err) throw err;
     console.log('Partners saved to partners.txt file');
   });
